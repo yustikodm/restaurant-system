@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -18,8 +17,7 @@ import { AppService } from './app.service';
       ],
       uri: process.env.RABBITMQ_URL || 'amqp://localhost:5672',
     }),
+    NotificationModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

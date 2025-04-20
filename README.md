@@ -1,288 +1,318 @@
-# Restaurant Order Management System
+# Restaurant System
 
-A microservices-based restaurant order management system built with Node.js, TypeScript, and RabbitMQ.
+A microservices-based restaurant management system built with NestJS, MongoDB, and RabbitMQ.
 
-## Overview
+## Table of Contents
+- [Architecture](#architecture)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Getting Started](#getting-started)
+- [API Documentation](#api-documentation)
+- [Environment Setup](#environment-setup)
+- [Development](#development)
+- [Production Deployment](#production-deployment)
+- [Monitoring](#monitoring)
+- [Troubleshooting](#troubleshooting)
+- [Security](#security)
+- [Contributing](#contributing)
+- [License](#license)
 
-This system consists of three microservices:
-- **Menu Service**: Manages restaurant menu items
-- **Order Service**: Handles order processing and management
-- **Notification Service**: Sends notifications for order status updates
+## Architecture
+
+The system consists of three main microservices:
+
+1. **Menu Service** (Port: 3001)
+   - Manages menu items
+   - Handles CRUD operations for food items
+   - Provides menu item information to other services
+   - Includes a seeder for populating sample menu items
+
+2. **Order Service** (Port: 3002)
+   - Manages customer orders
+   - Integrates with Menu Service for item details
+   - Handles order status updates
+   - Publishes order events to RabbitMQ
+   - Supports order status flow: Pending → Preparing → Ready → Completed
+
+3. **Notification Service** (Port: 3003)
+   - Handles email notifications
+   - Subscribes to order events
+   - Sends order confirmations and status updates
+   - Logs email content for debugging
+
+### System Flow
+1. Customer places order through Order Service
+2. Order Service validates items with Menu Service
+3. Order Service publishes order event
+4. Notification Service sends confirmation email
+5. Staff updates order status
+6. Notification Service sends status update emails
 
 ## Features
 
-- Create and manage menu items
-- Place and track orders
-- Real-time order status updates
-- Email notifications for order status changes
-- RESTful API endpoints
-- Message queue-based communication between services
+- **Menu Management**
+  - Create, update, delete menu items
+  - Set item availability
+  - Categorize items
+  - Bulk import/export
+
+- **Order Processing**
+  - Multi-item orders
+  - Real-time status updates
+  - Order history
+  - Price calculation
+
+- **Notifications**
+  - Order confirmation emails
+  - Status update notifications
+  - Customizable templates
+  - Email logging
 
 ## Prerequisites
 
-- Node.js 18.x or higher
-- npm 9.x or higher
 - Docker and Docker Compose
-- RabbitMQ
+- Node.js (v18 or higher)
+- npm or yarn
+- MongoDB (for local development)
+- RabbitMQ (for local development)
 
-## Installation
+## Getting Started
 
 1. Clone the repository:
-```bash
-git clone https://github.com/yustikodm/restaurant-system.git
-cd restaurant-system
-```
+   ```bash
+   git clone <repository-url>
+   cd restaurant-system
+   ```
 
 2. Install dependencies for each service:
-```bash
-cd menu-service && npm install
-cd ../order-service && npm install
-cd ../notification-service && npm install
-```
-
-3. Create `.env` files in each service directory based on the provided `.env.example` files.
-
-4. Start the services using Docker Compose:
-```bash
-docker-compose up -d
-```
-
-## Deployment Guide
-
-### Local Deployment
-
-1. **Environment Setup**
-   - Ensure all prerequisites are installed
-   - Configure environment variables in `.env` files
-   - Set up MongoDB and RabbitMQ
-
-2. **Service Deployment**
    ```bash
-   # Build and start all services
-   docker-compose up -d --build
-
-   # Verify services are running
-   docker-compose ps
+   cd menu-service && npm install
+   cd ../order-service && npm install
+   cd ../notification-service && npm install
    ```
 
-3. **Health Checks**
-   - Menu Service: http://localhost:3001/health
-   - Order Service: http://localhost:3002/health
-   - Notification Service: http://localhost:3003/health
-   - RabbitMQ Management: http://localhost:15672
-   - MongoDB: mongodb://localhost:27017
+3. Create .env files for each service (templates provided in each service directory)
 
-### Production Deployment
-
-1. **Infrastructure Requirements**
-   - Kubernetes cluster or cloud provider (AWS, GCP, Azure)
-   - Load balancer
-   - Managed MongoDB service
-   - Managed RabbitMQ service
-   - SSL certificates
-
-2. **Deployment Steps**
+4. Start the services:
    ```bash
-   # Build production images
-   docker-compose -f docker-compose.prod.yml build
-
-   # Push images to container registry
-   docker-compose -f docker-compose.prod.yml push
-
-   # Deploy to Kubernetes
-   kubectl apply -f k8s/
+   docker-compose up -d
    ```
 
-3. **Scaling**
+5. Seed the menu database:
    ```bash
-   # Scale services
-   kubectl scale deployment menu-service --replicas=3
-   kubectl scale deployment order-service --replicas=3
-   kubectl scale deployment notification-service --replicas=2
+   cd menu-service && npm run seed
    ```
 
-## Feature Testing Guide
+## API Documentation
 
-### 1. Menu Management
+### Menu Service (http://localhost:3001)
+
+#### Get All Menu Items
+- **GET** `/menu`
+- Response:
+  ```json
+  [
+    {
+      "id": "1234",
+      "name": "Margherita Pizza",
+      "description": "Classic Italian pizza with tomatoes and mozzarella",
+      "price": 12.99,
+      "isAvailable": true
+    }
+  ]
+  ```
 
 #### Create Menu Item
-```bash
-curl -X POST http://localhost:3001/menu \
-  -H "Content-Type: application/json" \
-  -d '{
+- **POST** `/menu`
+- Request:
+  ```json
+  {
     "name": "Margherita Pizza",
     "description": "Classic Italian pizza with tomatoes and mozzarella",
     "price": 12.99,
     "isAvailable": true
-  }'
-```
-
-#### Get All Menu Items
-```bash
-curl http://localhost:3001/menu
-```
+  }
+  ```
 
 #### Update Menu Item
-```bash
-curl -X PUT http://localhost:3001/menu/{id} \
-  -H "Content-Type: application/json" \
-  -d '{
+- **PUT** `/menu/:id`
+- Request:
+  ```json
+  {
     "price": 13.99,
     "isAvailable": false
-  }'
-```
+  }
+  ```
 
-### 2. Order Management
+### Order Service (http://localhost:3002)
 
 #### Create Order
-```bash
-curl -X POST http://localhost:3002/orders \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customerEmail": "customer@example.com",
+- **POST** `/orders`
+- Request:
+  ```json
+  {
     "items": [
       {
-        "menuId": "{menu_id}",
+        "menuId": "menu-item-id",
         "quantity": 2
       }
-    ]
-  }'
-```
-
-#### Get Order Status
-```bash
-curl http://localhost:3002/orders/{order_id}
-```
+    ],
+    "customerEmail": "customer@example.com"
+  }
+  ```
 
 #### Update Order Status
-```bash
-curl -X PUT http://localhost:3002/orders/{order_id}/status \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status": "PREPARING"
-  }'
+- **PUT** `/orders/:id/status`
+- Request:
+  ```json
+  {
+    "status": "Preparing"
+  }
+  ```
+- Valid Statuses: `Pending`, `Preparing`, `Ready`, `Completed`, `Cancelled`
+
+## Environment Setup
+
+### Menu Service (.env)
+```
+PORT=3001
+MONGODB_URI=mongodb://mongodb:27017/restaurant
+RABBITMQ_URL=amqp://rabbitmq:5672
+RABBITMQ_QUEUE=menu_queue
 ```
 
-### 3. Notification Testing
-
-#### Test Email Notification
-```bash
-curl -X POST http://localhost:3003/notifications/test \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "subject": "Test Notification",
-    "message": "This is a test notification"
-  }'
+### Order Service (.env)
+```
+PORT=3002
+MONGODB_URI=mongodb://mongodb:27017/restaurant
+RABBITMQ_URL=amqp://rabbitmq:5672
+RABBITMQ_QUEUE=order_queue
 ```
 
-## Testing Scenarios
-
-### Scenario 1: Complete Order Flow
-1. Create a menu item
-2. Place an order with the menu item
-3. Update order status to PREPARING
-4. Update order status to READY
-5. Verify email notifications at each status change
-
-### Scenario 2: Menu Availability
-1. Create multiple menu items
-2. Set some items as unavailable
-3. Try to order unavailable items (should fail)
-4. Update item availability
-5. Verify order succeeds after item becomes available
-
-### Scenario 3: Order Modifications
-1. Place an order
-2. Update order status to PREPARING
-3. Try to modify order (should fail)
-4. Cancel order
-5. Verify cancellation notification
-
-### Scenario 4: High Load Testing
-1. Create multiple menu items
-2. Place multiple orders simultaneously
-3. Update order statuses in parallel
-4. Verify all notifications are sent
-5. Check system performance
-
-### Scenario 5: Error Handling
-1. Try to create menu item with invalid data
-2. Place order with non-existent menu items
-3. Update non-existent order
-4. Send notification to invalid email
-5. Verify appropriate error responses
-
-## API Documentation
-
-### Menu Service (Port 3001)
-- `GET /menu` - Get all menu items
-- `POST /menu` - Create a new menu item
-- `GET /menu/:id` - Get a specific menu item
-- `PUT /menu/:id` - Update a menu item
-- `DELETE /menu/:id` - Delete a menu item
-
-### Order Service (Port 3002)
-- `POST /orders` - Create a new order
-- `GET /orders/:id` - Get order details
-- `PUT /orders/:id/status` - Update order status
-
-### Notification Service (Port 3003)
-- `POST /notifications` - Send a notification
-- `POST /notifications/test` - Test email notification
+### Notification Service (.env)
+```
+PORT=3003
+MONGODB_URI=mongodb://mongodb:27017/restaurant
+RABBITMQ_URL=amqp://rabbitmq:5672
+RABBITMQ_QUEUE=notification_queue
+EMAIL_FROM=restaurant@example.com
+```
 
 ## Development
 
-To run the services in development mode:
+1. Start services in development mode:
+   ```bash
+   docker-compose -f docker-compose.dev.yml up -d
+   ```
 
-```bash
-# Menu Service
-cd menu-service
-npm run dev
+2. Run tests:
+   ```bash
+   # For each service
+   npm run test
+   ```
 
-# Order Service
-cd order-service
-npm run dev
+3. Development Best Practices:
+   - Use TypeScript strict mode
+   - Follow NestJS coding guidelines
+   - Write unit tests for new features
+   - Update API documentation
+   - Use meaningful commit messages
 
-# Notification Service
-cd notification-service
-npm run dev
-```
+## Production Deployment
 
-## Testing
+1. Build Docker images:
+   ```bash
+   docker-compose build
+   ```
 
-Run tests for each service:
+2. Start services:
+   ```bash
+   docker-compose up -d
+   ```
 
-```bash
-# Menu Service
-cd menu-service
-npm test
+3. Production Considerations:
+   - Use environment-specific .env files
+   - Enable production logging
+   - Configure proper email service
+   - Set up monitoring
+   - Use container orchestration (Kubernetes)
 
-# Order Service
-cd order-service
-npm test
+## Monitoring
 
-# Notification Service
-cd notification-service
-npm test
-```
+- **RabbitMQ Management UI**: http://localhost:15672
+  - Monitor queues and message flow
+  - Check connection status
+  - View error logs
+
+- **Service Logs**:
+  ```bash
+  # View service logs
+  docker-compose logs <service-name>
+  
+  # Follow logs in real-time
+  docker-compose logs -f <service-name>
+  
+  # View last 100 lines
+  docker-compose logs --tail=100 <service-name>
+  ```
+
+- **MongoDB Data**:
+  - Access through MongoDB Compass
+  - Monitor database performance
+  - View collections and documents
+
+## Troubleshooting
+
+1. **Service Connection Issues**
+   - Check if services are running: `docker-compose ps`
+   - Verify MongoDB connection: `docker-compose logs mongodb`
+   - Check RabbitMQ status: `docker-compose logs rabbitmq`
+   - Ensure correct environment variables
+
+2. **Order Creation Issues**
+   - Verify menu items exist: `curl http://localhost:3001/menu`
+   - Check order service logs: `docker-compose logs order-service`
+   - Validate request payload format
+
+3. **Notification Issues**
+   - Check notification service logs: `docker-compose logs notification-service`
+   - Verify RabbitMQ queues in Management UI
+   - Check email configuration
+
+## Security
+
+1. **API Security**
+   - Use HTTPS in production
+   - Implement rate limiting
+   - Add request validation
+   - Sanitize inputs
+
+2. **Database Security**
+   - Use strong passwords
+   - Enable authentication
+   - Regular backups
+   - Monitor access logs
+
+3. **Container Security**
+   - Use official base images
+   - Regular security updates
+   - Proper permission settings
+   - Resource limitations
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+### Commit Guidelines
+- Use meaningful commit messages
+- Reference issue numbers
+- Keep changes focused
+- Add tests for new features
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Node.js
-- TypeScript
-- RabbitMQ
-- Express.js
-- Docker 
+This project is licensed under the MIT License. 

@@ -81,6 +81,14 @@ export class OrderService {
     if (!order) {
       throw new NotFoundException(`Order with ID ${id} not found`);
     }
+
+    // Publish status update to RabbitMQ
+    await this.amqpConnection.publish('order.exchange', 'order.status', {
+      orderId: order._id,
+      status: order.status,
+      customerEmail: order.customerEmail,
+    });
+
     return order;
   }
 } 
